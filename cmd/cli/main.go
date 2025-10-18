@@ -213,7 +213,10 @@ func main() {
 		}
 		defer cc.Close()
 
-		resp, err := cli.Register(ctx, &pb.RegisterRequest{Username: *u, Password: *p})
+		rr := &pb.RegisterRequest{}
+		rr.SetUsername(*u)
+		rr.SetPassword(*p)
+		resp, err := cli.Register(ctx, rr)
 		if err != nil {
 			fail(err)
 		}
@@ -235,7 +238,11 @@ func main() {
 		}
 		defer cc.Close()
 
-		resp, err := cli.Login(ctx, &pb.LoginRequest{Username: *u, Password: *p})
+		lr := &pb.LoginRequest{}
+		lr.SetUsername(*u)
+		lr.SetPassword(*p)
+
+		resp, err := cli.Login(ctx, lr)
 		if err != nil {
 			fail(err)
 		}
@@ -267,7 +274,10 @@ func main() {
 			if err != nil {
 				fail(err)
 			}
-			_, err = cli2.SetWrappedDEK(ctx, &pb.SetWrappedDEKRequest{WrappedDek: wrapped})
+
+			swDEKr := &pb.SetWrappedDEKRequest{}
+			swDEKr.SetWrappedDek(wrapped)
+			_, err = cli2.SetWrappedDEK(ctx, swDEKr)
 			_ = cc2.Close()
 			if err != nil {
 				fail(err)
@@ -307,7 +317,9 @@ func main() {
 		}
 		defer cc.Close()
 
-		out, err := cli.GetChanges(ctx, &pb.GetChangesRequest{SinceVer: 0})
+		gcr := &pb.GetChangesRequest{}
+		gcr.SetSinceVer(0)
+		out, err := cli.GetChanges(ctx, gcr)
 		if err != nil {
 			fail(err)
 		}
@@ -339,7 +351,9 @@ func main() {
 		}
 		defer cc.Close()
 
-		out, err := cli.GetChanges(ctx, &pb.GetChangesRequest{SinceVer: *since})
+		gcr := &pb.GetChangesRequest{}
+		gcr.SetSinceVer(*since)
+		out, err := cli.GetChanges(ctx, gcr)
 		if err != nil {
 			fail(err)
 		}
@@ -364,7 +378,9 @@ func main() {
 		}
 		defer ccConn.Close()
 
-		out, err := cli.GetItem(ctx, &pb.GetItemRequest{Id: *id})
+		gir := &pb.GetItemRequest{}
+		gir.SetId(*id)
+		out, err := cli.GetItem(ctx, gir)
 		if err != nil {
 			fail(err)
 		}
@@ -473,11 +489,17 @@ func main() {
 			fail(err)
 		}
 
-		req := &pb.UpsertItemsRequest{
-			Items: []*pb.UpsertItem{
-				{Id: *id, BaseVer: 0, BlobEnc: &pb.EncryptedBlob{Ciphertext: blob}},
-			},
-		}
+		eb := &pb.EncryptedBlob{}
+		eb.SetCiphertext(blob)
+
+		ui := &pb.UpsertItem{}
+		ui.SetId(*id)
+		ui.SetBaseVer(0)
+		ui.SetBlobEnc(eb)
+		req := &pb.UpsertItemsRequest{}
+		req.SetItems([]*pb.UpsertItem{
+			ui,
+		})
 		out, err := cli.UpsertItems(ctx, req)
 		if err != nil {
 			fail(err)
@@ -536,11 +558,18 @@ func main() {
 			fail(err)
 		}
 
-		req := &pb.UpsertItemsRequest{
-			Items: []*pb.UpsertItem{
-				{Id: *id, BaseVer: *base, BlobEnc: &pb.EncryptedBlob{Ciphertext: blob}},
-			},
-		}
+		eb := &pb.EncryptedBlob{}
+		eb.SetCiphertext(blob)
+
+		ui := &pb.UpsertItem{}
+		ui.SetId(*id)
+		ui.SetBaseVer(*base)
+		ui.SetBlobEnc(eb)
+		req := &pb.UpsertItemsRequest{}
+		req.SetItems([]*pb.UpsertItem{
+			ui,
+		})
+
 		out, err := cli.UpsertItems(ctx, req)
 		if err != nil {
 			fail(err)
@@ -567,7 +596,10 @@ func main() {
 		}
 		defer cc.Close()
 
-		out, err := cli.DeleteItem(ctx, &pb.DeleteItemRequest{Id: *id, BaseVer: *base})
+		dir := &pb.DeleteItemRequest{}
+		dir.SetId(*id)
+		dir.SetBaseVer(*base)
+		out, err := cli.DeleteItem(ctx, dir)
 		if err != nil {
 			fail(err)
 		}

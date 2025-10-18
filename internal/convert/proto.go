@@ -26,15 +26,19 @@ func ToProtoEncryptedBlob(b model.EncryptedBlob) *pb.EncryptedBlob {
 	if b == nil {
 		return nil
 	}
-	return &pb.EncryptedBlob{Ciphertext: []byte(b)}
+	eblob := &pb.EncryptedBlob{}
+	eblob.SetCiphertext([]byte(b))
+	return eblob
 }
 
 // FromProtoEncryptedBlob unwraps protobuf blob into domain EncryptedBlob.
 func FromProtoEncryptedBlob(b *pb.EncryptedBlob) model.EncryptedBlob {
-	if b == nil || len(b.Ciphertext) == 0 {
+
+	ctxt := b.GetCiphertext()
+	if b == nil || len(ctxt) == 0 {
 		return nil
 	}
-	return model.EncryptedBlob(b.Ciphertext)
+	return model.EncryptedBlob(ctxt)
 }
 
 // --- Upsert (client -> server) ---
@@ -72,11 +76,11 @@ func FromProtoUpsertItems(in []*pb.UpsertItem) ([]model.UpsertItem, error) {
 
 // ToProtoItemVersion converts domain ItemVersion to protobuf result.
 func ToProtoItemVersion(v model.ItemVersion) *pb.ItemVersion {
-	return &pb.ItemVersion{
-		Id:        v.ID.String(),
-		NewVer:    v.NewVer,
-		UpdatedAt: ts(v.UpdatedAt),
-	}
+	iv := &pb.ItemVersion{}
+	iv.SetId(v.ID.String())
+	iv.SetNewVer(v.NewVer)
+	iv.SetUpdatedAt(ts(v.UpdatedAt))
+	return iv
 }
 
 // ToProtoItemVersions converts a slice of ItemVersion to protobuf results.
@@ -94,13 +98,16 @@ func ToProtoChange(c model.Change) *pb.Change {
 	if !c.Deleted {
 		blob = ToProtoEncryptedBlob(c.BlobEnc)
 	}
-	return &pb.Change{
-		Id:        c.ID.String(),
-		Ver:       c.Ver,
-		Deleted:   c.Deleted,
-		UpdatedAt: ts(c.UpdatedAt),
-		BlobEnc:   blob,
-	}
+
+	change := &pb.Change{}
+	change.SetId(c.ID.String())
+	change.SetVer(c.Ver)
+	change.SetDeleted(c.Deleted)
+	change.SetUpdatedAt(ts(c.UpdatedAt))
+	change.SetBlobEnc(blob)
+
+	return change
+
 }
 
 // ToProtoChanges converts domain changes to protobuf changes for sync.
@@ -116,11 +123,13 @@ func ToProtoChanges(cs []model.Change) []*pb.Change {
 
 // ToProtoGetItemResponse converts domain Item to GetItemResponse.
 func ToProtoGetItemResponse(it model.Item) *pb.GetItemResponse {
-	return &pb.GetItemResponse{
-		Id:        it.ID.String(),
-		Ver:       it.Ver,
-		Deleted:   it.Deleted,
-		UpdatedAt: ts(it.UpdatedAt),
-		BlobEnc:   ToProtoEncryptedBlob(it.BlobEnc),
-	}
+
+	iresp := &pb.GetItemResponse{}
+	iresp.SetId(it.ID.String())
+	iresp.SetVer(it.Ver)
+	iresp.SetDeleted(it.Deleted)
+	iresp.SetUpdatedAt(ts(it.UpdatedAt))
+	iresp.SetBlobEnc(ToProtoEncryptedBlob(it.BlobEnc))
+
+	return iresp
 }

@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: gk
+      POSTGRES_PASSWORD: gkpass
+      POSTGRES_DB: gk
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gk -d gk"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build:
+      context: .
+      dockerfile: ./cmd/server/Dockerfile
+    environment:
+      GK_PG_DSN: postgres://gk:gkpass@db:5432/gk?sslmode=disable
+      GK_ADDR: :8443
+      GK_JWT_KEY: supersecret
+      GK_TLS_CERT: /certs/cert.pem
+      GK_TLS_KEY: /certs/key.pem
+      GK_DEV: "1"
+    volumes:
+      - ./cert.pem:/certs/cert.pem:ro
+      - ./key.pem:/certs/key.pem:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8443:8443"
+    command:
+      - -dev
+      - -dsn
+      - postgres://gk:gkpass@db:5432/gk?sslmode=disable
+      - -jwt-key
+      - supersecret
+      - -tls-cert
+      - /certs/cert.pem
+      - -tls-key
+      - /certs/key.pem
+
+volumes:
+  pgdata:

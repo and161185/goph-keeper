@@ -44,7 +44,10 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Reg
 		// map conflicts/validation as needed
 		return nil, status.Errorf(codes.Internal, "register: %v", err)
 	}
-	return &pb.RegisterResponse{UserId: userID}, nil
+
+	rr := &pb.RegisterResponse{}
+	rr.SetUserId(userID)
+	return rr, nil
 }
 
 func remoteIP(ctx context.Context) string {
@@ -68,13 +71,14 @@ func (s *Server) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResp
 		}
 		return nil, status.Errorf(codes.Internal, "login: %v", err)
 	}
-	return &pb.LoginResponse{
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		KekSalt:      u.KekSalt,
-		WrappedDek:   u.WrappedDEK,
-		UserId:       u.ID.String(),
-	}, nil
+
+	lg := &pb.LoginResponse{}
+	lg.SetAccessToken(tok.AccessToken)
+	lg.SetRefreshToken(tok.RefreshToken)
+	lg.SetKekSalt(u.KekSalt)
+	lg.SetWrappedDek(u.WrappedDEK)
+	lg.SetUserId(u.ID.String())
+	return lg, nil
 }
 
 // --- Items ---
@@ -95,7 +99,9 @@ func (s *Server) UpsertItems(ctx context.Context, req *pb.UpsertItemsRequest) (*
 		}
 		return nil, status.Errorf(codes.Internal, "upsert: %v", err)
 	}
-	return &pb.UpsertItemsResponse{Results: convert.ToProtoItemVersions(res)}, nil
+	uir := &pb.UpsertItemsResponse{}
+	uir.SetResults(convert.ToProtoItemVersions(res))
+	return uir, nil
 }
 
 // GetChanges returns changes since a given version for delta synchronization.
@@ -108,7 +114,10 @@ func (s *Server) GetChanges(ctx context.Context, req *pb.GetChangesRequest) (*pb
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get changes: %v", err)
 	}
-	return &pb.GetChangesResponse{Changes: convert.ToProtoChanges(cs)}, nil
+
+	gcr := &pb.GetChangesResponse{}
+	gcr.SetChanges(convert.ToProtoChanges(cs))
+	return gcr, nil
 }
 
 // GetItem returns a single item by id.
@@ -152,7 +161,10 @@ func (s *Server) DeleteItem(ctx context.Context, req *pb.DeleteItemRequest) (*pb
 			return nil, status.Errorf(codes.Internal, "delete: %v", err)
 		}
 	}
-	return &pb.DeleteItemResponse{Result: convert.ToProtoItemVersion(ver)}, nil
+
+	dir := &pb.DeleteItemResponse{}
+	dir.SetResult(convert.ToProtoItemVersion(ver))
+	return dir, nil
 }
 
 // userIDFromCtx: extract "authorization: Bearer <JWT>", verify HS256, return sub as UUID.

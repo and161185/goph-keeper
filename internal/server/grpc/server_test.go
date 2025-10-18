@@ -109,11 +109,18 @@ func TestServer_E2E_BasicFlow(t *testing.T) {
 	defer stop()
 	cl := pb.NewGophKeeperClient(cc)
 
-	r1, err := cl.Register(context.Background(), &pb.RegisterRequest{Username: "u", Password: "p"})
+	rr := &pb.RegisterRequest{}
+	rr.SetUsername("u")
+	rr.SetPassword("p")
+	r1, err := cl.Register(context.Background(), rr)
 	if err != nil || r1.GetUserId() == "" {
 		t.Fatalf("register: %v, resp=%+v", err, r1)
 	}
-	r2, err := cl.Login(context.Background(), &pb.LoginRequest{Username: "u", Password: "p"})
+
+	lr := &pb.LoginRequest{}
+	lr.SetUsername("u")
+	lr.SetPassword("p")
+	r2, err := cl.Login(context.Background(), lr)
 	if err != nil || r2.GetKekSalt() == nil {
 		t.Fatalf("login: %v, resp=%+v", err, r2)
 	}
@@ -131,13 +138,19 @@ func TestServer_E2E_BasicFlow(t *testing.T) {
 	}
 
 	itemID := uuid.Must(uuid.NewV4())
-	upr, err := srv.UpsertItems(authIn, &pb.UpsertItemsRequest{
-		Items: []*pb.UpsertItem{{
-			Id:      itemID.String(),
-			BaseVer: 0,
-			BlobEnc: &pb.EncryptedBlob{Ciphertext: []byte{9}},
-		}},
-	})
+
+	eb := &pb.EncryptedBlob{}
+	eb.SetCiphertext([]byte{9})
+
+	ui := &pb.UpsertItem{}
+	ui.SetId(itemID.String())
+	ui.SetBaseVer(0)
+	ui.SetBlobEnc(eb)
+
+	uir := &pb.UpsertItemsRequest{}
+	uir.SetItems([]*pb.UpsertItem{ui})
+
+	upr, err := srv.UpsertItems(authIn, uir)
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
@@ -145,22 +158,31 @@ func TestServer_E2E_BasicFlow(t *testing.T) {
 		t.Fatalf("bad upsert result: %+v", upr)
 	}
 
-	gi, err := srv.GetItem(authIn, &pb.GetItemRequest{Id: itemID.String()})
+	gir := &pb.GetItemRequest{}
+	gir.SetId(itemID.String())
+	gi, err := srv.GetItem(authIn, gir)
 	if err != nil || gi.GetBlobEnc() == nil || gi.GetVer() != 2 {
 		t.Fatalf("get item: %v, resp=%+v", err, gi)
 	}
 
-	gc, err := srv.GetChanges(authIn, &pb.GetChangesRequest{SinceVer: 0})
+	gcr := &pb.GetChangesRequest{}
+	gcr.SetSinceVer(0)
+	gc, err := srv.GetChanges(authIn, gcr)
 	if err != nil || len(gc.GetChanges()) != 1 || it.lastSince != 0 {
 		t.Fatalf("get changes: %v, resp=%+v lastSince=%d", err, gc, it.lastSince)
 	}
 
-	dr, err := srv.DeleteItem(authIn, &pb.DeleteItemRequest{Id: itemID.String(), BaseVer: 1})
+	dir := &pb.DeleteItemRequest{}
+	dir.SetId(itemID.String())
+	dir.SetBaseVer(1)
+	dr, err := srv.DeleteItem(authIn, dir)
 	if err != nil || dr.GetResult().GetNewVer() != 2 {
 		t.Fatalf("delete: %v, resp=%+v", err, dr)
 	}
 
-	if _, err := srv.SetWrappedDEK(authIn, &pb.SetWrappedDEKRequest{WrappedDek: []byte{1, 2}}); err != nil {
+	swDEKr := &pb.SetWrappedDEKRequest{}
+	swDEKr.SetWrappedDek([]byte{1, 2})
+	if _, err := srv.SetWrappedDEK(authIn, swDEKr); err != nil {
 		t.Fatalf("set wrapped: %v", err)
 	}
 }
@@ -186,14 +208,19 @@ func Test_UpsertItems_Unauthenticated(t *testing.T) {
 }
 func Test_GetChanges_Unauthenticated(t *testing.T) {
 	s := &Server{signKey: []byte("k")}
-	_, err := s.GetChanges(context.Background(), &pb.GetChangesRequest{SinceVer: 0})
+
+	gcr := &pb.GetChangesRequest{}
+	gcr.SetSinceVer(0)
+	_, err := s.GetChanges(context.Background(), gcr)
 	if st, ok := status.FromError(err); !ok || st.Code() != codes.Unauthenticated {
 		t.Fatalf("want Unauthenticated, got %v", err)
 	}
 }
 func Test_GetItem_Unauthenticated(t *testing.T) {
 	s := &Server{signKey: []byte("k")}
-	_, err := s.GetItem(context.Background(), &pb.GetItemRequest{Id: "x"})
+	gir := &pb.GetItemRequest{}
+	gir.SetId("x")
+	_, err := s.GetItem(context.Background(), gir)
 	if st, ok := status.FromError(err); !ok || st.Code() != codes.Unauthenticated {
 		t.Fatalf("want Unauthenticated, got %v", err)
 	}
@@ -203,7 +230,10 @@ func Test_GetItem_BadID_WithAuth(t *testing.T) {
 	s := &Server{signKey: key}
 	sub := uuid.Must(uuid.NewV4()).String()
 	ctx := ctxAuth(jwtFor(t, sub, key, time.Hour))
-	_, err := s.GetItem(ctx, &pb.GetItemRequest{Id: "not-a-uuid"})
+
+	gir := &pb.GetItemRequest{}
+	gir.SetId("not-a-uuid")
+	_, err := s.GetItem(ctx, gir)
 	if st, ok := status.FromError(err); !ok || st.Code() != codes.InvalidArgument {
 		t.Fatalf("want InvalidArgument, got %v", err)
 	}
@@ -213,7 +243,11 @@ func Test_DeleteItem_BadID_WithAuth(t *testing.T) {
 	s := &Server{signKey: key}
 	sub := uuid.Must(uuid.NewV4()).String()
 	ctx := ctxAuth(jwtFor(t, sub, key, time.Hour))
-	_, err := s.DeleteItem(ctx, &pb.DeleteItemRequest{Id: "bad", BaseVer: 0})
+
+	dir := &pb.DeleteItemRequest{}
+	dir.SetId("bad")
+	dir.SetBaseVer(0)
+	_, err := s.DeleteItem(ctx, dir)
 	if st, ok := status.FromError(err); !ok || st.Code() != codes.InvalidArgument {
 		t.Fatalf("want InvalidArgument, got %v", err)
 	}
@@ -223,7 +257,10 @@ func Test_SetWrappedDEK_Empty_WithAuth(t *testing.T) {
 	s := &Server{signKey: key}
 	sub := uuid.Must(uuid.NewV4()).String()
 	ctx := ctxAuth(jwtFor(t, sub, key, time.Hour))
-	_, err := s.SetWrappedDEK(ctx, &pb.SetWrappedDEKRequest{WrappedDek: nil})
+
+	swDEKr := &pb.SetWrappedDEKRequest{}
+	swDEKr.SetWrappedDek(nil)
+	_, err := s.SetWrappedDEK(ctx, swDEKr)
 	if st, ok := status.FromError(err); !ok || st.Code() != codes.InvalidArgument {
 		t.Fatalf("want InvalidArgument, got %v", err)
 	}
@@ -233,9 +270,14 @@ func Test_UpsertItems_BadItems_WithAuth(t *testing.T) {
 	s := &Server{signKey: key}
 	sub := uuid.Must(uuid.NewV4()).String()
 	ctx := ctxAuth(jwtFor(t, sub, key, time.Hour))
-	_, err := s.UpsertItems(ctx, &pb.UpsertItemsRequest{
-		Items: []*pb.UpsertItem{{Id: "bad-uuid", BaseVer: 0}},
-	})
+
+	ui := &pb.UpsertItem{}
+	ui.SetId("bad-uuid")
+	ui.SetBaseVer(0)
+
+	uir := &pb.UpsertItemsRequest{}
+	uir.SetItems([]*pb.UpsertItem{ui})
+	_, err := s.UpsertItems(ctx, uir)
 	if st, ok := status.FromError(err); !ok || st.Code() != codes.InvalidArgument {
 		t.Fatalf("want InvalidArgument, got %v", err)
 	}

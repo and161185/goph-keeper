@@ -1,10 +1,13 @@
-syntax = "proto3";
+edition = "2023";
 
 package gophkeeper.v1;
 
 option go_package = "github.com/and161185/goph-keeper/gen/go/gophkeeper/v1;gophkeeperv1";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
+
+option features.(pb.go).api_level = API_OPAQUE;
 
 // NOTE ON SECURITY:
 // - All user data blobs are client-side encrypted with AEAD (XChaCha20-Poly1305).

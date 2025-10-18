@@ -90,6 +90,7 @@ func main() {
 
 	// gRPC server with interceptors
 	s := grpc.NewServer(
+		grpc.MaxRecvMsgSize(1<<20), // 1 MiB incoming
 		grpc.Creds(creds),
 		grpc.ChainUnaryInterceptor(
 			grpcserver.RecoverUnary(logger),

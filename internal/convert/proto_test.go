@@ -29,14 +29,16 @@ func TestToFromProtoEncryptedBlob(t *testing.T) {
 	if FromProtoEncryptedBlob(nil) != nil {
 		t.Fatalf("nil pb blob must give nil domain")
 	}
-	if FromProtoEncryptedBlob(&pb.EncryptedBlob{Ciphertext: nil}) != nil {
+	eb := &pb.EncryptedBlob{}
+	eb.SetCiphertext(nil)
+	if FromProtoEncryptedBlob(eb) != nil {
 		t.Fatalf("empty ciphertext must give nil domain")
 	}
 
 	// roundtrip
 	d := model.EncryptedBlob([]byte{1, 2, 3})
 	p := ToProtoEncryptedBlob(d)
-	if p == nil || string(p.Ciphertext) != "\x01\x02\x03" {
+	if p == nil || string(p.GetCiphertext()) != "\x01\x02\x03" {
 		t.Fatalf("pb mismatch")
 	}
 	dr := FromProtoEncryptedBlob(p)
@@ -48,22 +50,25 @@ func TestToFromProtoEncryptedBlob(t *testing.T) {
 func TestFromProtoUpsertItem_OK(t *testing.T) {
 	t.Parallel()
 
-	in := &pb.UpsertItem{
-		Id:      "6f1cbe8e-b2e7-4a3b-9f6e-2a2c0f2f9c11",
-		BaseVer: 10,
-		BlobEnc: &pb.EncryptedBlob{Ciphertext: []byte{9, 9}},
-	}
-	got, err := FromProtoUpsertItem(in)
+	eb := &pb.EncryptedBlob{}
+	eb.SetCiphertext([]byte{9, 9})
+
+	ui := &pb.UpsertItem{}
+	ui.SetId("6f1cbe8e-b2e7-4a3b-9f6e-2a2c0f2f9c11")
+	ui.SetBaseVer(10)
+	ui.SetBlobEnc(eb)
+
+	got, err := FromProtoUpsertItem(ui)
 	if err != nil {
 		t.Fatalf("FromProtoUpsertItem: %v", err)
 	}
-	if got.ID.String() != in.Id {
+	if got.ID.String() != ui.GetId() {
 		t.Fatalf("id mismatch")
 	}
-	if got.BaseVer != in.BaseVer {
+	if got.BaseVer != ui.GetBaseVer() {
 		t.Fatalf("baseVer mismatch")
 	}
-	if string(got.BlobEnc) != string(in.BlobEnc.Ciphertext) {
+	if string(got.BlobEnc) != string(ui.GetBlobEnc().GetCiphertext()) {
 		t.Fatalf("blob mismatch")
 	}
 }
@@ -71,7 +76,10 @@ func TestFromProtoUpsertItem_OK(t *testing.T) {
 func TestFromProtoUpsertItem_InvalidUUID(t *testing.T) {
 	t.Parallel()
 
-	_, err := FromProtoUpsertItem(&pb.UpsertItem{Id: "not-a-uuid"})
+	ui := &pb.UpsertItem{}
+	ui.SetId("not-a-uuid")
+
+	_, err := FromProtoUpsertItem(ui)
 	if err == nil || !strings.Contains(err.Error(), "invalid id") {
 		t.Fatalf("want invalid id error, got: %v", err)
 	}
@@ -85,10 +93,25 @@ func TestFromProtoUpsertItems_BatchAndEarlyError(t *testing.T) {
 		t.Fatalf("nil slice → empty, err=%v", err)
 	}
 
+	eb := &pb.EncryptedBlob{}
+	eb.SetCiphertext([]byte{1})
+
+	ui1 := &pb.UpsertItem{}
+	ui1.SetId("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	ui1.SetBaseVer(1)
+	ui1.SetBlobEnc(eb)
+
+	ui2 := &pb.UpsertItem{}
+	ui2.SetId("bad-uuid")
+
+	ui3 := &pb.UpsertItem{}
+	ui3.SetId("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	ui3.SetBaseVer(2)
+
 	in := []*pb.UpsertItem{
-		{Id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", BaseVer: 1, BlobEnc: &pb.EncryptedBlob{Ciphertext: []byte{1}}},
-		{Id: "bad-uuid"},
-		{Id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", BaseVer: 2},
+		ui1,
+		ui2,
+		ui3,
 	}
 	_, err = FromProtoUpsertItems(in)
 	if err == nil || !strings.Contains(err.Error(), "item[1]") {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/gofrs/uuid/v5"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/and161185/goph-keeper/internal/model"
 	"github.com/and161185/goph-keeper/internal/repository"
@@ -52,6 +54,8 @@ func (s *ItemServiceImpl) Upsert(ctx context.Context, userID uuid.UUID, ups []mo
 	if s.maxBatch > 0 && len(ups) > s.maxBatch {
 		return nil, fmt.Errorf("validation: batch too large (%d > %d)", len(ups), s.maxBatch)
 	}
+
+	const maxBlob = 1 << 20
 	for i := range ups {
 		if ups[i].ID == uuid.Nil {
 			return nil, fmt.Errorf("validation: item[%d] empty id", i)
@@ -62,7 +66,11 @@ func (s *ItemServiceImpl) Upsert(ctx context.Context, userID uuid.UUID, ups []mo
 		if len(ups[i].BlobEnc) == 0 {
 			return nil, fmt.Errorf("validation: item[%d] empty blob", i)
 		}
+		if len(ups[i].BlobEnc) > maxBlob {
+			return nil, status.Error(codes.InvalidArgument, "blob too large (>1MiB)")
+		}
 	}
+
 	return s.repo.UpsertBatch(ctx, userID, ups)
 }
 

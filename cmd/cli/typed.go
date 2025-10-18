@@ -47,14 +47,24 @@ func encryptForItem(itemID, userID string, ver int64, plaintext []byte) ([]byte,
 func upsertOne(addr, caPath string, insecure bool, token, itemID string, baseVer int64, blob []byte) (*pb.UpsertItemsResponse, error) {
 	ctx, cancel := withTimeout()
 	defer cancel()
+
 	ccConn, cli, err := dial(ctx, addr, caPath, insecure, token)
 	if err != nil {
 		return nil, err
 	}
 	defer ccConn.Close()
-	req := &pb.UpsertItemsRequest{
-		Items: []*pb.UpsertItem{{Id: itemID, BaseVer: baseVer, BlobEnc: &pb.EncryptedBlob{Ciphertext: blob}}},
-	}
+
+	eb := &pb.EncryptedBlob{}
+	eb.SetCiphertext(blob)
+
+	it := &pb.UpsertItem{}
+	it.SetId(itemID)
+	it.SetBaseVer(baseVer)
+	it.SetBlobEnc(eb)
+
+	req := &pb.UpsertItemsRequest{}
+	req.SetItems([]*pb.UpsertItem{it})
+
 	return cli.UpsertItems(ctx, req)
 }
 
@@ -337,7 +347,9 @@ func cmdShow(args []string, addr, caPath string, insecure bool) {
 	}
 	defer ccConn.Close()
 
-	it, err := cli.GetItem(ctx, &pb.GetItemRequest{Id: *id})
+	req := &pb.GetItemRequest{}
+	req.SetId(*id)
+	it, err := cli.GetItem(ctx, req)
 	if err != nil {
 		fail(err)
 	}

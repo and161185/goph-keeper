@@ -21,6 +21,7 @@ profile.*
 cert.pem
 key.pem
 *.pem
+*:Zone.Identifier
 
 # Env/config dumps
 .env
