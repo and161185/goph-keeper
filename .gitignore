@@ -1,0 +1,39 @@
+# Go build artifacts
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Coverage & benchmarks
+*.out
+*.cover
+*.cov
+coverage.*
+profile.*
+
+# Logs
+*.log
+
+# Local TLS/dev keys
+cert.pem
+key.pem
+*.pem
+*:Zone.Identifier
+
+# Env/config dumps
+.env
+.env.*
+.envrc
+
+# Editors / OS
+.idea/
+.vscode/
+.fleet/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+

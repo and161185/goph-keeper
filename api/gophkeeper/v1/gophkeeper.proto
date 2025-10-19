@@ -1,0 +1,162 @@
+edition = "2023";
+
+package gophkeeper.v1;
+
+option go_package = "github.com/and161185/goph-keeper/gen/go/gophkeeper/v1;gophkeeperv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/go_features.proto";
+
+option features.(pb.go).api_level = API_OPAQUE;
+
+// NOTE ON SECURITY:
+// - All user data blobs are client-side encrypted with AEAD (XChaCha20-Poly1305).
+// - Server must never see plaintext. It stores only opaque ciphertext and versioning metadata.
+// - Auth via JWT in gRPC metadata: "authorization: Bearer <access_token>".
+// - TLS is mandatory at transport level.
+
+// User registration.
+message RegisterRequest {
+  // Unique username chosen by the user.
+  string username = 1;
+  // Plain password sent over TLS; server hashes with Argon2id + per-user salt_auth.
+  string password = 2;
+}
+message RegisterResponse {
+  // Empty on success. Consider returning user_id if needed by clients.
+  string user_id = 1;
+}
+
+// User login / session bootstrap.
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+message LoginResponse {
+  // Short-lived token to authorize API calls (metadata "authorization: Bearer ...").
+  string access_token = 1;
+  // Optional refresh token if you implement refresh flows.
+  string refresh_token = 2;
+
+  // KDF salt used to derive KEK on client (Argon2id).
+  bytes kek_salt = 3;
+
+  // Encrypted DEK (wrapped with KEK). AEAD blob produced on client.
+  bytes wrapped_dek = 4;
+
+  // Server-side user id (UUID).
+  string user_id = 5;
+}
+
+// Opaque item payload encrypted on client: {type, meta, data} as JSON, then AEAD.
+message EncryptedBlob {
+  bytes ciphertext = 1; // Entire opaque AEAD blob (nonce+ct+tag as you pack it).
+}
+
+// Upsert payload for optimistic concurrency.
+message UpsertItem {
+  // Client-generated UUID (string form).
+  string id = 1;
+
+  // Base version the client observed before modification.
+  int64 base_ver = 2;
+
+  // New encrypted blob to store.
+  EncryptedBlob blob_enc = 3;
+}
+
+// Version info returned by server after apply.
+message ItemVersion {
+  string id = 1;
+  int64 new_ver = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+// Single change entry in delta stream.
+message Change {
+  string id = 1;
+  int64 ver = 2;
+  bool deleted = 3;
+  google.protobuf.Timestamp updated_at = 4;
+
+  // Present only if not deleted (server can always send it; client ignores when deleted=true).
+  EncryptedBlob blob_enc = 5;
+}
+
+// ---- Requests/Responses ----
+
+message UpsertItemsRequest {
+  repeated UpsertItem items = 1;
+}
+message UpsertItemsResponse {
+  repeated ItemVersion results = 1;
+}
+
+// Get all changes since a given version (LWW conflict policy on server).
+message GetChangesRequest {
+  // Inclusive lower bound: return items with ver > since_ver.
+  int64 since_ver = 1;
+}
+message GetChangesResponse {
+  repeated Change changes = 1;
+}
+
+message GetItemRequest {
+  string id = 1;
+}
+message GetItemResponse {
+  string id = 1;
+  int64 ver = 2;
+  bool deleted = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  EncryptedBlob blob_enc = 5;
+}
+
+message DeleteItemRequest {
+  string id = 1;
+  int64 base_ver = 2;
+}
+message DeleteItemResponse {
+  ItemVersion result = 1;
+}
+
+message SetWrappedDEKRequest { 
+  bytes wrapped_dek = 1;
+}
+message SetWrappedDEKResponse {}
+
+// ---- Service ----
+
+service GophKeeper {
+  // Create user. Errors:
+  // - ALREADY_EXISTS: username taken
+  // - INVALID_ARGUMENT: bad input
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Authenticate user and bootstrap client-side crypto. Errors:
+  // - UNAUTHENTICATED: wrong credentials
+  // - RESOURCE_EXHAUSTED: rate limit / lockout
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Upsert items with optimistic concurrency (base_ver must match).
+  // Errors:
+  // - FAILED_PRECONDITION: version conflict
+  // - INVALID_ARGUMENT: malformed payload
+  rpc UpsertItems(UpsertItemsRequest) returns (UpsertItemsResponse);
+
+  // Incremental sync by version cursor.
+  rpc GetChanges(GetChangesRequest) returns (GetChangesResponse);
+
+  // Fetch a single item by id.
+  // Errors:
+  // - NOT_FOUND
+  rpc GetItem(GetItemRequest) returns (GetItemResponse);
+
+  // Logical delete (tombstone), ver++.
+  // Errors:
+  // - FAILED_PRECONDITION: version conflict
+  // - NOT_FOUND
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+
+  rpc SetWrappedDEK(SetWrappedDEKRequest) returns (SetWrappedDEKResponse);
+}
