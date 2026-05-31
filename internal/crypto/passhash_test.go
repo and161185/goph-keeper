@@ -21,7 +21,7 @@ func TestRandBytes_LengthAndUniqueness(t *testing.T) {
 		t.Fatalf("RandBytes(2): %v", err)
 	}
 	if bytes.Equal(a, b) {
-		t.Fatalf("two subsequent RandBytes(%d) are equal — looks non-random", n)
+		t.Fatalf("two subsequent RandBytes(%d) are equal - looks non-random", n)
 	}
 
 	zero := make([]byte, n)

@@ -132,6 +132,56 @@ func readAll(p string) ([]byte, error) {
 	return os.ReadFile(p)
 }
 
+type itemVersionOut struct {
+	ID        string `json:"id"`
+	NewVer    int64  `json:"new_ver"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
+type changeOut struct {
+	ID        string `json:"id"`
+	Ver       int64  `json:"ver"`
+	Deleted   bool   `json:"deleted"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
+func printChanges(changes []*pb.Change) {
+	out := make([]changeOut, 0, len(changes))
+
+	for _, c := range changes {
+		out = append(out, changeOut{
+			ID:        c.GetId(),
+			Ver:       c.GetVer(),
+			Deleted:   c.GetDeleted(),
+			UpdatedAt: tsString(c.GetUpdatedAt()),
+		})
+	}
+
+	printJSON(out)
+}
+
+func printItemVersions(items []*pb.ItemVersion) {
+	out := make([]itemVersionOut, 0, len(items))
+
+	for _, item := range items {
+		out = append(out, itemVersionOut{
+			ID:        item.GetId(),
+			NewVer:    item.GetNewVer(),
+			UpdatedAt: tsString(item.GetUpdatedAt()),
+		})
+	}
+
+	printJSON(out)
+}
+
+func printItemVersion(item *pb.ItemVersion) {
+	printJSON(itemVersionOut{
+		ID:        item.GetId(),
+		NewVer:    item.GetNewVer(),
+		UpdatedAt: tsString(item.GetUpdatedAt()),
+	})
+}
+
 func printJSON(v any) {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -157,13 +207,21 @@ Usage:
 Commands:
   version
   register   -u <username> -p <password>
-  login      -u <username> -p <password>           (saves token)
-  list                                         (GetChanges since 0)
+  login      -u <username> -p <password> (saves token)
+
+  list (GetChanges since 0)
   sync       -since <ver>
-  get        -id <uuid>
-  add        -id <uuid> -file <blob>               (base_ver=0)
+  add        -id <uuid> -file <blob> (base_ver=0)
   edit       -id <uuid> -base <ver> -file <blob>
   rm         -id <uuid> -base <ver>
+
+  add-login  --title <title> --url <url> --username <username> --password <password> [--note <note>]
+  add-text   --title <title> --text <text> [--note <note>]
+  add-card   --title <title> --name <name> --number <number> --exp <MM/YY> --cvc <cvc> [--note <note>]
+  add-binary --title <title> --file <path> [--note <note>]
+  add-otp    --title <title> --issuer <issuer> --secret <secret> [--digits <n>] [--period <sec>] [--note <note>]
+
+  show       -id <uuid> [-out <file>] [-reveal]
 `)
 	os.Exit(2)
 }
@@ -323,18 +381,8 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		// печатаем коротко
-		type row struct{ ID, Ver, Deleted, UpdatedAt string }
-		rows := []row{}
-		for _, c := range out.GetChanges() {
-			rows = append(rows, row{
-				ID:        c.GetId(),
-				Ver:       fmt.Sprint(c.GetVer()),
-				Deleted:   fmt.Sprint(c.GetDeleted()),
-				UpdatedAt: tsString(c.GetUpdatedAt()),
-			})
-		}
-		printJSON(rows)
+		// print a short summary
+		printChanges(out.GetChanges())
 
 	case "sync":
 		fs := flag.NewFlagSet("sync", flag.ExitOnError)
@@ -357,79 +405,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		printJSON(out.GetChanges())
-
-	case "get":
-		fs := flag.NewFlagSet("get", flag.ExitOnError)
-		id := fs.String("id", "", "item id (uuid)")
-		_ = fs.Parse(flag.Args()[1:])
-		if *id == "" {
-			fmt.Fprintln(os.Stderr, "need -id")
-			os.Exit(1)
-		}
-
-		token, err := loadToken()
-		if err != nil {
-			fail(err)
-		}
-		ccConn, cli, err := dial(ctx, *addr, *caPath, *insecure, token)
-		if err != nil {
-			fail(err)
-		}
-		defer ccConn.Close()
-
-		gir := &pb.GetItemRequest{}
-		gir.SetId(*id)
-		out, err := cli.GetItem(ctx, gir)
-		if err != nil {
-			fail(err)
-		}
-		if out.GetDeleted() {
-			fmt.Fprintln(os.Stderr, "item is deleted")
-			os.Exit(1)
-		}
-
-		// decrypt: key = HKDF(DEK, itemID); AAD = userID||itemID||ver
-		dek, err := loadDEK()
-		if err != nil {
-			fail(errors.New("no DEK; login first"))
-		}
-		userID, err := loadUserID()
-		if err != nil {
-			fail(err)
-		}
-		ver := out.GetVer()
-		blob := out.GetBlobEnc().GetCiphertext()
-
-		key, err := clientcrypto.DeriveItemKey(dek, []byte(*id))
-		if err != nil {
-			fail(err)
-		}
-		pt, err := clientcrypto.DecryptBlob(key, []byte(userID), []byte(*id), ver, blob)
-		if err != nil {
-			fail(fmt.Errorf("decrypt: %w", err))
-		}
-
-		// payload формат: {type, meta, data}; печатаем красиво
-		var payload struct {
-			Type string      `json:"type"`
-			Meta interface{} `json:"meta"`
-			Data []byte      `json:"data"`
-		}
-		if err := json.Unmarshal(pt, &payload); err != nil {
-			// если не JSON — выведем как есть (hex+size)
-			fmt.Printf("id=%s ver=%d at=%s\nraw=%x (%dB)\n",
-				out.GetId(), ver, tsString(out.GetUpdatedAt()), pt, len(pt))
-			break
-		}
-
-		fmt.Printf("id=%s ver=%d at=%s type=%s data=%dB\n",
-			out.GetId(), ver, tsString(out.GetUpdatedAt()), payload.Type, len(payload.Data))
-
-		if payload.Meta != nil {
-			m, _ := json.MarshalIndent(payload.Meta, "", "  ")
-			fmt.Printf("meta=%s\n", m)
-		}
+		printChanges(out.GetChanges())
 
 	case "add":
 		fs := flag.NewFlagSet("add", flag.ExitOnError)
@@ -504,7 +480,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		printJSON(out.GetResults())
+		printItemVersions(out.GetResults())
 
 	case "edit":
 		fs := flag.NewFlagSet("edit", flag.ExitOnError)
@@ -574,7 +550,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		printJSON(out.GetResults())
+		printItemVersions(out.GetResults())
 
 	case "rm":
 		fs := flag.NewFlagSet("rm", flag.ExitOnError)
@@ -603,7 +579,7 @@ func main() {
 		if err != nil {
 			fail(err)
 		}
-		printJSON(out.GetResult())
+		printItemVersion(out.GetResult())
 
 	case "add-login":
 		cmdAddLogin(flag.Args()[1:], *addr, *caPath, *insecure)

@@ -22,7 +22,7 @@ func mustUUID(t *testing.T, s string) u.UUID {
 func TestToFromProtoEncryptedBlob(t *testing.T) {
 	t.Parallel()
 
-	// nil → nil / empty
+	// nil -> nil / empty
 	if ToProtoEncryptedBlob(nil) != nil {
 		t.Fatalf("nil domain blob must give nil pb")
 	}
@@ -90,7 +90,7 @@ func TestFromProtoUpsertItems_BatchAndEarlyError(t *testing.T) {
 
 	out, err := FromProtoUpsertItems(nil)
 	if err != nil || len(out) != 0 {
-		t.Fatalf("nil slice → empty, err=%v", err)
+		t.Fatalf("nil slice -> empty, err=%v", err)
 	}
 
 	eb := &pb.EncryptedBlob{}
@@ -124,7 +124,7 @@ func TestToProtoItemVersion_ZerosAndTime(t *testing.T) {
 
 	id := mustUUID(t, "11111111-1111-1111-1111-111111111111")
 
-	// zero time → UpdatedAt=nil
+	// zero time -> UpdatedAt=nil
 	p0 := ToProtoItemVersion(model.ItemVersion{ID: id, NewVer: 7})
 	if p0.GetId() != id.String() || p0.GetNewVer() != 7 {
 		t.Fatalf("basic fields mismatch")
@@ -133,7 +133,7 @@ func TestToProtoItemVersion_ZerosAndTime(t *testing.T) {
 		t.Fatalf("zero time must map to nil timestamp")
 	}
 
-	// non-zero time → timestamp set
+	// non-zero time -> timestamp set
 	ts := time.Now().UTC().Truncate(time.Second)
 	p1 := ToProtoItemVersion(model.ItemVersion{ID: id, NewVer: 8, UpdatedAt: ts})
 	if p1.GetUpdatedAt() == nil || p1.GetUpdatedAt().AsTime().UTC() != ts {
@@ -213,7 +213,7 @@ func TestToProtoGetItemResponse(t *testing.T) {
 
 	id := mustUUID(t, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 
-	// zero time → UpdatedAt=nil
+	// zero time -> UpdatedAt=nil
 	r0 := ToProtoGetItemResponse(model.Item{
 		ID: id, Ver: 9, Deleted: false, BlobEnc: model.EncryptedBlob{7, 7, 7},
 	})

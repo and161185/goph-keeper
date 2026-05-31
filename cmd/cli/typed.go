@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -153,7 +152,7 @@ func cmdAddLogin(args []string, addr, caPath string, insecure bool) {
 	if err != nil {
 		fail(err)
 	}
-	printJSON(resp.GetResults())
+	printItemVersions(resp.GetResults())
 }
 
 // cmdAddText creates or updates a text record from flags.
@@ -191,7 +190,7 @@ func cmdAddText(args []string, addr, caPath string, insecure bool) {
 	if err != nil {
 		fail(err)
 	}
-	printJSON(resp.GetResults())
+	printItemVersions(resp.GetResults())
 }
 
 // cmdAddCard creates or updates a card record with basic validation.
@@ -216,8 +215,25 @@ func cmdAddCard(args []string, addr, caPath string, insecure bool) {
 		fmt.Fprintln(os.Stderr, "invalid card fields")
 		os.Exit(2)
 	}
-	meta := map[string]any{"title": *title, "name": *name, "number": *number, "exp": *exp, "cvc": *cvc, "note": *note}
-	data := map[string]any{}
+
+	last4 := ""
+	if len(*number) >= 4 {
+		last4 = (*number)[len(*number)-4:]
+	}
+
+	meta := map[string]any{
+		"title": *title,
+		"last4": last4,
+		"note":  *note,
+	}
+
+	data := map[string]any{
+		"name":   *name,
+		"number": *number,
+		"exp":    *exp,
+		"cvc":    *cvc,
+	}
+
 	pt, _ := buildTypedPayload("card", meta, data)
 
 	token, err := loadToken()
@@ -236,7 +252,7 @@ func cmdAddCard(args []string, addr, caPath string, insecure bool) {
 	if err != nil {
 		fail(err)
 	}
-	printJSON(resp.GetResults())
+	printItemVersions(resp.GetResults())
 }
 
 // cmdAddBinary creates or updates a binary record from a file.
@@ -279,7 +295,7 @@ func cmdAddBinary(args []string, addr, caPath string, insecure bool) {
 	if err != nil {
 		fail(err)
 	}
-	printJSON(resp.GetResults())
+	printItemVersions(resp.GetResults())
 }
 
 // cmdAddOTP creates or updates an OTP secret record.
@@ -321,7 +337,7 @@ func cmdAddOTP(args []string, addr, caPath string, insecure bool) {
 	if err != nil {
 		fail(err)
 	}
-	printJSON(resp.GetResults())
+	printItemVersions(resp.GetResults())
 }
 
 // cmdShow decrypts and displays a record; for binary, can write to a file.
@@ -329,6 +345,8 @@ func cmdShow(args []string, addr, caPath string, insecure bool) {
 	fs := flag.NewFlagSet("show", flag.ExitOnError)
 	id := fs.String("id", "", "item id (uuid)")
 	out := fs.String("out", "", "write binary data to file ('-'=stdout)")
+	reveal := fs.Bool("reveal", false, "print secret payload data")
+
 	_ = fs.Parse(args)
 	if *id == "" {
 		fmt.Fprintln(os.Stderr, "need -id")
@@ -388,12 +406,26 @@ func cmdShow(args []string, addr, caPath string, insecure bool) {
 
 	switch obj.Type {
 	case "binary":
-		var m struct{ Filename, Mime string }
+		var m struct {
+			Title    string `json:"title"`
+			Filename string `json:"filename"`
+			Mime     string `json:"mime"`
+			Note     string `json:"note"`
+		}
 		_ = json.Unmarshal(obj.Meta, &m)
+
 		var data []byte
 		_ = json.Unmarshal(obj.Data, &data)
+
+		if *out == "" {
+			fmt.Println("meta:")
+			fmt.Println(pretty(obj.Meta))
+			fmt.Printf("data=%dB (binary; use -out <file> to restore)\n", len(data))
+			return
+		}
+
 		var w io.Writer = os.Stdout
-		if *out != "" && *out != "-" {
+		if *out != "-" {
 			f, err := os.Create(*out)
 			if err != nil {
 				fail(err)
@@ -401,16 +433,24 @@ func cmdShow(args []string, addr, caPath string, insecure bool) {
 			defer f.Close()
 			w = f
 		}
+
 		if _, err := w.Write(data); err != nil {
 			fail(err)
 		}
+
 		if *out != "-" {
 			fmt.Printf("wrote %dB to %s\n", len(data), choose(*out, m.Filename))
 		}
 	default:
+		fmt.Println("meta:")
 		fmt.Println(pretty(obj.Meta))
 
-		fmt.Printf("data=%sB (use type-specific export if needed)\n", strconv.Itoa(len(obj.Data)))
+		if *reveal {
+			fmt.Println("data:")
+			fmt.Println(pretty(obj.Data))
+		} else {
+			fmt.Printf("data=%dB (hidden; use -reveal to print)\n", len(obj.Data))
+		}
 	}
 }
 

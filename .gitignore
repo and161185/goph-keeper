@@ -16,6 +16,7 @@ profile.*
 
 # Logs
 *.log
+*.txt
 
 # Local TLS/dev keys
 cert.pem

@@ -65,7 +65,7 @@ func Test_autoUUID(t *testing.T) {
 
 func Test_validExp(t *testing.T) {
 	t.Parallel()
-	for _, s := range []string{"01/25", "12/99", "00/00", "13/20"} { // regex-проверка, не валидирует месяц
+	for _, s := range []string{"01/25", "12/99", "00/00", "13/20"} { // regex check only; does not validate the month
 		if !validExp(s) {
 			t.Fatalf("expected valid by regex: %s", s)
 		}

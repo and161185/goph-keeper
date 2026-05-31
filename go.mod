@@ -5,7 +5,6 @@ go 1.24.5
 require (
 	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/golang/protobuf v1.5.4
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/pashagolub/pgxmock/v3 v3.4.0
 	github.com/pressly/goose/v3 v3.26.0
