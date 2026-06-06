@@ -1,8 +1,8 @@
 # GophKeeper
 
-GophKeeper is a client-server system for secure storage and synchronization of confidential data: logins, passwords, text notes, binary files, card data, and OTP secrets.
+GophKeeper is a backend-focused training project for secure client-server storage of confidential data: logins, passwords, text notes, binary files, card data, and OTP secrets.
 
-All item encryption is performed on the client side. The server stores only encrypted payloads and service metadata.
+All item encryption is performed on the client side. The server stores only encrypted payloads and service metadata. The project includes item-level versioning, tombstones, and a basic GetChanges API as synchronization primitives, but it is not a full production-grade synchronization system.
 
 This is a backend-focused training project. The CLI is a demo client for testing the API, encryption flow, and synchronization logic. It is not a full-featured password manager UI.
 
@@ -11,7 +11,9 @@ This is a backend-focused training project. The CLI is a demo client for testing
 * gRPC over TLS
 * Registration and login with JWT HS256
 * PostgreSQL storage
-* Versioning, tombstones, and delta sync
+* Item-level versioning with optimistic concurrency
+* Tombstones as deletion markers
+* Basic GetChanges API as a synchronization primitive
 * Optimistic concurrency with `base_ver`
 * Client-side crypto: XChaCha20-Poly1305 AEAD, DEK/KEK, Argon2id, HKDF per-item key
 * AAD binding: `user_id || item_id || ver`
@@ -37,6 +39,7 @@ This is a backend-focused training project. The CLI is a demo client for testing
 * Refresh tokens are present in the API model, but refresh flow is not implemented.
 * gRPC metrics are not implemented; only logging and health check are available.
 * The CLI code is intentionally simple and not deeply split into packages.
+* GetChanges is simplified: it uses item-level versions and should not be treated as production-grade delta synchronization. A real sync model would need a global change sequence, a change log, or another explicit sync design.
 
 ## Documentation
 

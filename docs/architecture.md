@@ -4,7 +4,7 @@
 
 GophKeeper is a backend-focused training project for secure storage and synchronization of confidential data.
 
-The project focuses on gRPC communication, TLS, JWT authentication, PostgreSQL storage, optimistic concurrency, delta synchronization, and client-side encryption.
+The project focuses on gRPC communication, TLS, JWT authentication, PostgreSQL storage, client-side encryption, item-level optimistic concurrency, and basic synchronization primitives.
 
 This is a training project, not a production-ready password manager.
 
@@ -123,11 +123,13 @@ The demo CLI treats `meta` as safe to display by default. Secret payload data is
 
 ## Synchronization model
 
-The client can request changes after a known version.
+The project contains basic synchronization primitives: item versions, tombstones, and a GetChanges API.
 
-The server returns items with versions greater than the requested version. Deleted items are returned as tombstones.
+Item versions are maintained per item and are primarily used for optimistic concurrency with base_ver.
 
-This allows the client to synchronize incrementally instead of downloading all items every time.
+The current GetChanges implementation is simplified and should not be treated as production-grade delta synchronization. A real synchronization model would require a global change sequence, a change log table, or another explicit sync design.
+
+Tombstones are used as deletion markers and can support future synchronization flows, but the demo CLI does not implement a full local offline cache.
 
 ## Error handling
 

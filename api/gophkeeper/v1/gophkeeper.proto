@@ -92,7 +92,8 @@ message UpsertItemsResponse {
   repeated ItemVersion results = 1;
 }
 
-// Get all changes since a given version (LWW conflict policy on server).
+// Get changes after a given version.
+// Note: this is a simplified demo API and not a production-grade sync cursor.
 message GetChangesRequest {
   // Inclusive lower bound: return items with ver > since_ver.
   int64 since_ver = 1;
